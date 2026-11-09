@@ -6,9 +6,13 @@ using Application.Features.Courses.CreateCourse;
 using Application.Features.Courses.GetAllCourses;
 using Application.Features.Courses.GetCourseById;
 using Domain.Common;
+using Application.Features.Courses.UpdateCourse;
+using Application.Features.Courses.DeleteCourse;
+
 
 public static class CourseEndpoints
 {
+    private const string GetByIdRouteName = "GetCourseById";
     public static void MapCourseEndpoints(this IEndpointRouteBuilder app)
     {
         var group = app.MapGroup("/api/courses")
@@ -23,9 +27,19 @@ public static class CourseEndpoints
             .WithSummary("Create a new course");
 
         group.MapGet("/{id:guid}", GetById)
-            .WithName("GetCourseById")
+            .WithName(GetByIdRouteName)
             .WithSummary("Get course by ID");
+
+        group.MapPut("/{id:guid}", Update)
+            .WithName("UpdateCourse")
+            .WithSummary("Update an existing course");
+
+        group.MapDelete("/{id:guid}", Delete)
+             .WithName("DeleteCourse")
+             .WithSummary("Delete a course");
     }
+
+    public sealed record UpdateCourseRequest(string Title, string Code, int Credits);
 
     private static async Task<IResult> GetAll(
         IQueryHandler<GetAllCoursesQuery, Result<GetAllCoursesResponse>> handler,
@@ -45,7 +59,7 @@ public static class CourseEndpoints
     {
         var result = await handler.HandleAsync(command, cancellationToken);
         return result.IsSuccess
-            ? TypedResults.CreatedAtRoute(result.Value, "GetCourseById", new { id = result.Value!.Id })
+            ? TypedResults.CreatedAtRoute(result.Value, GetByIdRouteName, new { id = result.Value!.Id })
             : result.ToProblemDetails();
     }
 
@@ -59,5 +73,29 @@ public static class CourseEndpoints
         return result.IsSuccess
             ? TypedResults.Ok(result.Value)
             : result.ToProblemDetails();
+    }
+
+    private static async Task<IResult> Update(
+        Guid id,
+        UpdateCourseRequest request,
+        ICommandHandler<UpdateCourseCommand, Result<UpdateCourseResponse>> handler,
+        CancellationToken cancellationToken)
+    {
+        var command = new UpdateCourseCommand(id, request.Title, request.Code, request.Credits);
+        var result = await handler.HandleAsync(command, cancellationToken);
+        return result.Match(
+            onSuccess: value => TypedResults.Ok(value),
+            onFailure: _ => result.ToProblemDetails());
+    }
+
+    private static async Task<IResult> Delete(
+         Guid id,
+         ICommandHandler<DeleteCourseCommand, Result> handler,
+         CancellationToken cancellationToken)
+    {
+        var result = await handler.HandleAsync(new DeleteCourseCommand(id), cancellationToken);
+        return result.Match(
+            onSuccess: () => TypedResults.NoContent(),
+            onFailure: _ => result.ToProblemDetails());
     }
 }
