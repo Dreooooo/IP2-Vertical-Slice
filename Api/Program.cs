@@ -3,6 +3,7 @@ using Api.Features.Courses;
 using Api.Features.Admissions;
 using Application.Abstractions.Data;
 using Application.Abstractions.Messaging;
+using Application.Abstractions;
 using Application.Features.Students.CreateStudent;
 using Application.Features.Students.GetAllStudents;
 using Application.Features.Admissions.GetAllAdmissions;
@@ -41,6 +42,7 @@ builder.Services.AddScoped<IQueryHandler<GetAdmissionByIdQuery, Result<GetAdmiss
 builder.Services.AddScoped<IQueryHandler<GetAllAdmissionsQuery,Result<GetAllAdmissionsResponse>>, GetAllAdmissionsQueryHandler>();
 builder.Services.AddScoped<ICommandHandler<UpdateCourseCommand, Result<UpdateCourseResponse>>, UpdateCourseCommandHandler>();
 builder.Services.AddScoped<ICommandHandler<DeleteCourseCommand, Result>, DeleteCourseCommandHandler>();
+builder.Services.AddScoped<IPasswordHasher, Infrastructure.Authentication.PasswordHasher>();
 
 // API
 builder.Services.AddEndpointsApiExplorer();
