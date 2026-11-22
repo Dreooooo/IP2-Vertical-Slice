@@ -22,6 +22,11 @@ using Application.Features.Courses.UpdateCourse;
 using Application.Features.Courses.DeleteCourse;
 using Infrastructure.Authentication;
 using Application.Features.Auth.Register;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.IdentityModel.Tokens;
+using System.Text;
+using Application.Features.Auth.Login;
+using Microsoft.OpenApi;
 using Api.Features.Auth;
 
 
@@ -42,6 +47,26 @@ builder.Services.AddSingleton<TimeProvider>(TimeProvider.System);
 
 builder.Services.AddScoped<ITokenService, JwtTokenService>();
 
+var jwtSection = builder.Configuration.GetSection(JwtOptions.SectionName);
+
+builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(options =>
+    {
+        options.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidateIssuer = true,
+            ValidateAudience = true,
+            ValidateLifetime = true,
+            ValidateIssuerSigningKey = true,
+            ValidIssuer = jwtSection["Issuer"],
+            ValidAudience = jwtSection["Audience"],
+            IssuerSigningKey = new SymmetricSecurityKey(
+                Encoding.UTF8.GetBytes(jwtSection["SigningKey"]!)),
+            ClockSkew = TimeSpan.FromSeconds(30)
+        };
+    });
+builder.Services.AddAuthorization();
+
 // Validators
 builder.Services.AddValidatorsFromAssemblyContaining<CreateStudentValidator>();
 
@@ -59,6 +84,8 @@ builder.Services.AddScoped<ICommandHandler<UpdateCourseCommand, Result<UpdateCou
 builder.Services.AddScoped<ICommandHandler<DeleteCourseCommand, Result>, DeleteCourseCommandHandler>();
 builder.Services.AddScoped<IPasswordHasher, Infrastructure.Authentication.PasswordHasher>();
 builder.Services.AddScoped<ICommandHandler<RegisterCommand, Result<RegisterResponse>>, RegisterCommandHandler>();
+builder.Services.AddScoped<ICommandHandler<LoginCommand, Result<LoginResponse>>, LoginCommandHandler>();
+
 
 
 // API
@@ -69,11 +96,34 @@ builder.Services.AddOpenApi(options =>
     {
         document.Info.Title = "Vertical Slice API";
         document.Info.Description = "A simple API demonstrating Vertical Slice Architecture";
+
+        document.Components ??= new OpenApiComponents();
+        document.Components.SecuritySchemes ??=
+            new Dictionary<string, IOpenApiSecurityScheme>();
+
+        document.Components.SecuritySchemes["Bearer"] =
+            new OpenApiSecurityScheme
+            {
+                Type = SecuritySchemeType.Http,
+                Scheme = "bearer",
+                BearerFormat = "JWT",
+                Description = "Paste the access token from /api/auth/login"
+            };
+
+        document.Security ??= [];
+        document.Security.Add(new OpenApiSecurityRequirement
+        {
+            [new OpenApiSecuritySchemeReference("Bearer", document)] = []
+        });
+
         return Task.CompletedTask;
     });
 });
 
 var app = builder.Build();
+
+app.UseAuthentication(); // Who are you?
+app.UseAuthorization();  // Are you allowed?
 
 // Seed data
 await app.Services.MigrateAndSeedAsync();
