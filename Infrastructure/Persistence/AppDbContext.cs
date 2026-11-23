@@ -13,6 +13,7 @@ public sealed class AppDbContext : DbContext, IAppDbContext
     public DbSet<Admission> Admissions => Set<Admission>();
     public DbSet<AdmissionCourse> AdmissionCourses => Set<AdmissionCourse>();
     public DbSet<ApplicationUser> Users => Set<ApplicationUser>();
+    public DbSet<RevokedToken> RevokedTokens => Set<RevokedToken>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -64,6 +65,14 @@ public sealed class AppDbContext : DbContext, IAppDbContext
                   .WithMany()
                   .HasForeignKey(u => u.StudentId)
                   .OnDelete(DeleteBehavior.SetNull);
+        });
+
+
+        modelBuilder.Entity<RevokedToken>(entity =>
+        {
+            entity.HasKey(t => t.Jti);
+            entity.Property(t => t.Jti).IsRequired().HasMaxLength(36);
+            entity.Property(t => t.ExpiresAtUtc).IsRequired();
         });
     }
 }

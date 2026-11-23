@@ -25,6 +25,8 @@ using Application.Features.Auth.Register;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
+using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
 using Application.Features.Auth.Login;
 using Microsoft.OpenApi;
 using Api.Features.Auth;
@@ -64,6 +66,37 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
                 Encoding.UTF8.GetBytes(jwtSection["SigningKey"]!)),
             ClockSkew = TimeSpan.FromSeconds(30)
         };
+
+        options.Events = new JwtBearerEvents
+        {
+            OnTokenValidated = async context =>
+            {
+                var dbContext =
+                context.HttpContext.RequestServices.GetRequiredService < Application.Abstractions.Data.IAppDbContext > ();
+                var jti = context.Principal?.FindFirstValue(JwtRegisteredClaimNames.Jti);
+                var sub = context.Principal?.FindFirstValue(JwtRegisteredClaimNames.Sub) ?? context.Principal?.FindFirstValue(ClaimTypes.NameIdentifier);
+                var iatRaw = context.Principal?.FindFirstValue(JwtRegisteredClaimNames.Iat);
+
+                if (jti is not null && await dbContext.RevokedTokens.AnyAsync(r => r.Jti == jti))
+                {
+                    context.Fail("Token has been revoked.");
+                    return;
+                }
+                if (sub is not null && Guid.TryParse(sub, out var userId) && iatRaw is not null 
+                    && long.TryParse(iatRaw, out var iatUnix))
+                {
+                    var issuedAtUtc = DateTimeOffset.FromUnixTimeSeconds(iatUnix).UtcDateTime;
+                    var user = await dbContext.Users.FindAsync([userId]);
+
+                    if (user?.TokensValidFromUtc is { } validFrom &&
+                        issuedAtUtc < validFrom.AddSeconds(1))
+                    {
+                        context.Fail("Token was issued before the user's last sign-out-everywhere.");
+                        return;
+                    }
+                }
+            }
+        };
     });
 builder.Services.AddAuthorization();
 
@@ -85,6 +118,7 @@ builder.Services.AddScoped<ICommandHandler<DeleteCourseCommand, Result>, DeleteC
 builder.Services.AddScoped<IPasswordHasher, Infrastructure.Authentication.PasswordHasher>();
 builder.Services.AddScoped<ICommandHandler<RegisterCommand, Result<RegisterResponse>>, RegisterCommandHandler>();
 builder.Services.AddScoped<ICommandHandler<LoginCommand, Result<LoginResponse>>, LoginCommandHandler>();
+builder.Services.AddHostedService<Infrastructure.BackgroundJobs.RevokedTokenCleanupService>();
 
 
 

@@ -25,7 +25,12 @@ public sealed class JwtTokenService(
              new(JwtRegisteredClaimNames.Email, user.Email),
              new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
              new(ClaimTypes.Role, user.Role.ToString()),
-             new("full_name", $"{user.FirstName} {user.LastName}")
+             new("full_name", $"{user.FirstName} {user.LastName}"),
+             new(
+                 JwtRegisteredClaimNames.Iat,
+                 new DateTimeOffset(now).ToUnixTimeSeconds().ToString(),
+                 ClaimValueTypes.Integer64
+             ),
         };
 
         if (user.StudentId is not null)
