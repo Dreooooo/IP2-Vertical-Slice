@@ -29,6 +29,7 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using Application.Features.Auth.Login;
 using Microsoft.OpenApi;
+using Api.Common.Authorization;
 using Api.Features.Auth;
 
 
@@ -98,7 +99,7 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             }
         };
     });
-builder.Services.AddAuthorization();
+builder.Services.AddAppAuthorization();
 
 // Validators
 builder.Services.AddValidatorsFromAssemblyContaining<CreateStudentValidator>();
@@ -155,6 +156,26 @@ builder.Services.AddOpenApi(options =>
 });
 
 var app = builder.Build();
+
+app.UseStatusCodePages(async context =>
+{
+    var response = context.HttpContext.Response;
+
+    if (response.StatusCode is StatusCodes.Status401Unauthorized
+        or StatusCodes.Status403Forbidden)
+    {
+        response.ContentType = "application/problem+json";
+        await response.WriteAsJsonAsync(new Microsoft.AspNetCore.Mvc.ProblemDetails
+            {
+                Status = response.StatusCode,
+                Title = response.StatusCode == StatusCodes.Status401Unauthorized
+                    ? "Unauthorized" : "Forbidden",
+                Detail = response.StatusCode == StatusCodes.Status401Unauthorized
+                    ? "Authentication is required to access this resource."
+                    : "You do not have permission to perform this action."
+            });
+    }
+});
 
 app.UseAuthentication(); // Who are you?
 app.UseAuthorization();  // Are you allowed?

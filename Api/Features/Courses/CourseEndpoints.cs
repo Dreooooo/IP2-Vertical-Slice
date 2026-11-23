@@ -8,6 +8,7 @@ using Application.Features.Courses.GetCourseById;
 using Domain.Common;
 using Application.Features.Courses.UpdateCourse;
 using Application.Features.Courses.DeleteCourse;
+using Api.Common.Authorization;
 
 
 public static class CourseEndpoints
@@ -20,24 +21,23 @@ public static class CourseEndpoints
             .RequireAuthorization();
 
         group.MapGet("/", GetAll)
-            .WithName("GetAllCourses")
-            .WithSummary("Get all courses");
+            .RequireAuthorization();
 
         group.MapPost("/", Create)
-            .WithName("CreateCourse")
-            .WithSummary("Create a new course");
+            .RequireAuthorization(Policies.CanManageCourses);
 
         group.MapGet("/{id:guid}", GetById)
             .WithName(GetByIdRouteName)
-            .WithSummary("Get course by ID");
+            .RequireAuthorization();
+
 
         group.MapPut("/{id:guid}", Update)
-            .WithName("UpdateCourse")
-            .WithSummary("Update an existing course");
+            .RequireAuthorization(Policies.CanManageCourses);
 
         group.MapDelete("/{id:guid}", Delete)
-             .WithName("DeleteCourse")
-             .WithSummary("Delete a course");
+            .WithName("DeleteCourse")
+            .WithSummary("Delete a course")
+            .RequireAuthorization(Policies.CanManageCourses);
     }
 
     public sealed record UpdateCourseRequest(string Title, string Code, int Credits);
